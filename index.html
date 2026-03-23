@@ -1,0 +1,235 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Magikarp Jump</title>
+    <style>
+        @font-face {
+            font-family: 'NeoDunggeunmo';
+            src: url('https://cdn.jsdelivr.net/gh/projectnoonnu/noonfonts_2001@1.1/NeoDunggeunmo.woff') format('woff');
+        }
+        body { 
+            text-align: center; color: white; font-family: 'NeoDunggeunmo', cursive; 
+            height: 100vh; margin: 0; overflow: hidden; display: flex; flex-direction: column; align-items: center; justify-content: center;
+            background: #74b9ff url('https://wallpaperaccess.com/full/5111162.png') no-repeat center center;
+            background-size: cover; user-select: none; -webkit-user-select: none;
+        }
+        body::before { content: ""; position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0, 0, 0, 0.3); z-index: 1; }
+        .container-box { position: relative; z-index: 10; display: flex; flex-direction: column; align-items: center; }
+        #magikarp-container { position: relative; height: 350px; width: 100%; display: flex; align-items: center; justify-content: center; }
+        #magikarp { width: 150px; cursor: pointer; transition: transform 0.05s; filter: drop-shadow(0 0 10px rgba(255,255,255,0.7)); z-index: 11; }
+        .jump { animation: jump-ani 0.2s ease-out; }
+        @keyframes jump-ani { 0% { transform: translateY(0); } 50% { transform: translateY(-120px) rotate(10deg); } 100% { transform: translateY(0); } }
+        
+        /* 보너스 텍스트 */
+        .bonus-text { position: absolute; color: #ffeaa7; font-size: 1.5rem; font-weight: bold; text-shadow: 2px 2px 0 #000; animation: fade-up-out 0.8s ease-out forwards; pointer-events: none; z-index: 100; }
+        @keyframes fade-up-out { 0% { transform: translateY(0); opacity: 1; } 100% { transform: translateY(-100px); opacity: 0; } }
+
+        /* 사운드 컨트롤 패널 */
+        .audio-controls { position: absolute; bottom: 20px; left: 20px; background: rgba(0,0,0,0.8); padding: 12px; border-radius: 12px; border: 2px solid #fff; z-index: 30; text-align: left; font-size: 0.8em; }
+        .audio-controls label { display: block; margin-bottom: 5px; color: #ffeaa7; }
+        input[type=range] { width: 100px; cursor: pointer; }
+
+        .stats { position: absolute; top: 20px; left: 20px; text-align: left; background: rgba(0,0,0,0.7); padding: 15px; border-radius: 12px; z-index: 20; border: 2px solid #fff; }
+        .upgrade-menu { position: absolute; top: 20px; right: 20px; text-align: right; background: rgba(0,0,0,0.7); padding: 15px; border-radius: 12px; z-index: 20; border: 2px solid #ffd700; width: 240px; }
+        .skin-menu { position: absolute; bottom: 20px; right: 20px; background: rgba(0,0,0,0.8); padding: 15px; border-radius: 20px; display: flex; gap: 10px; flex-wrap: wrap; justify-content: center; max-width: 400px; z-index: 20; border: 2px solid #fff; }
+        
+        .btn { padding: 8px 15px; border: 2px solid #ccc; border-radius: 10px; cursor: pointer; background: #333; color: #ccc; font-family: 'NeoDunggeunmo'; margin-top: 5px; }
+        .upgrade-btn { background: #f1c40f; color: #000; font-weight: bold; width: 100%; border-color: #f39c12; font-size: 0.8em; }
+        .upgrade-btn:disabled { background: #7f8c8d; cursor: not-allowed; color: #bdc3c7; }
+        .btn.unlocked { background: #fab1a0; color: #2d3436; font-weight: bold; }
+        .btn.active { border: 3px solid #ffeaa7; color: #fff; }
+        .helper-karp { position: absolute; width: 80px; pointer-events: none; z-index: 5; transition: all 0.2s; }
+    </style>
+</head>
+<body id="game-body">
+    <div class="audio-controls">
+        <label>🎵 배경음악 (BGM)</label>
+        <input type="range" id="bgm-vol" min="0" max="1" step="0.1" value="0.3" onchange="updateVolume()">
+        <label style="margin-top:10px;">🔊 효과음 (울음소리)</label>
+        <input type="range" id="sfx-vol" min="0" max="1" step="0.1" value="0.4">
+    </div>
+
+    <div class="stats">
+        <div id="location">🌍 국가: 확인 중...</div>
+        <div style="font-size: 1.2em; margin-top: 10px; color: #55efc4;">보유 클릭: <span id="current-clicks">0</span></div>
+        <div style="font-size: 1.0em; opacity: 0.8;">누적 클릭: <span id="total-clicks">0</span></div>
+    </div>
+
+    <div class="upgrade-menu">
+        <div style="color: #ffd700; font-size: 1.0em; margin-bottom: 5px;">🛠️ 강화 시스템</div>
+        <div style="font-size: 0.75em;">💪 근력 (확률: <span id="prob1">0</span>%) [<span id="lv1">0</span>/15]</div>
+        <button id="up1" class="btn upgrade-btn" onclick="upgrade('strength')">강화 (100)</button>
+        <div style="font-size: 0.75em; margin-top: 10px;">🌊 도움 (1% 확률) [<span id="lv2">0</span>/5]</div>
+        <button id="up2" class="btn upgrade-btn" onclick="upgrade('help')">강화 (1,000)</button>
+    </div>
+
+    <div class="container-box">
+        <h1 id="fever-title" style="text-shadow: 3px 3px 0 #000; font-size: 3em;">🐟 Magikarp Jump 🐟</h1>
+        <div id="magikarp-container">
+            <img id="magikarp" src="https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/129.png" onclick="handleJump(event)">
+        </div>
+    </div>
+    <div class="skin-menu" id="skin-list"></div>
+
+    <script>
+        const helpCosts = [1000, 10000, 100000, 1000000, 10000000];
+        const skinInfo = {
+            normal: { name: "잉어킹", id: 129, url: "https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/129.png" },
+            shiny: { name: "황금 잉어킹", id: 129, url: "https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/shiny/129.png" },
+            ditto: { name: "메타몽", id: 132, url: "https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/129.png" },
+            gyarados: { name: "갸라도스", id: 130, url: "https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/130.png" },
+            red_gyarados: { name: "빨간 갸라도스", id: 130, url: "https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/shiny/130.png" },
+            dynamax: { name: "다이맥스", id: 129, url: "https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/129.png" },
+            arceus: { name: "아르세우스", id: 493, url: "https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/493.png" }
+        };
+
+        // 오디오 설정
+        const bgm = new Audio('https://www.khinsider.com/soundtracks/pokemon-emerald-original-sound-track/vltvshlp/1-25-surf.mp3'); 
+        // 외부 링크 이슈 대비 예비 경로 (에메랄드 Surf BGM 유사 주소)
+        bgm.src = 'https://vgmsite.com/soundtracks/pokemon-emerald-original-sound-track/zntjzyrjle/1-25-surf.mp3';
+        bgm.loop = true;
+        let bgmStarted = false;
+
+        let state = JSON.parse(localStorage.getItem('magikarpData')) || {
+            currentClicks: 0, totalClicks: 0, currentSkin: 'normal', unlockedSkins: ['normal'],
+            lvStrength: 0, costStrength: 100, lvHelp: 0
+        };
+
+        let isFever = false;
+
+        function updateVolume() {
+            bgm.volume = document.getElementById('bgm-vol').value;
+        }
+
+        function showBonusText(text) {
+            const el = document.createElement('div');
+            el.className = 'bonus-text';
+            el.innerText = text;
+            el.style.left = `${window.innerWidth/2 + (Math.random()*100 - 50)}px`;
+            el.style.top = `${window.innerHeight/2 - 100}px`;
+            document.body.appendChild(el);
+            setTimeout(() => el.remove(), 800);
+        }
+
+        function playCry(id) { 
+            const cry = new Audio(`https://raw.githubusercontent.com/PokeAPI/cries/main/cries/pokemon/latest/${id}.ogg`);
+            cry.volume = document.getElementById('sfx-vol').value;
+            cry.play().catch(()=>{}); 
+        }
+
+        function startFever() {
+            if(isFever) return;
+            isFever = true;
+            document.getElementById('game-body').classList.add('fever-active');
+            document.getElementById('fever-title').innerText = "🔥 FEVER TIME 🔥";
+            
+            const container = document.getElementById('magikarp-container');
+            const helpers = [];
+            const helperCount = state.lvHelp + 1;
+
+            for(let i=0; i<helperCount; i++) {
+                const img = document.createElement('img');
+                img.src = skinInfo.normal.url;
+                img.className = 'helper-karp';
+                img.style.left = `${(i - (helperCount-1)/2) * 100}px`;
+                container.appendChild(img);
+                helpers.push(img);
+            }
+
+            setTimeout(() => {
+                isFever = false;
+                document.getElementById('game-body').classList.remove('fever-active');
+                document.getElementById('fever-title').innerText = "🐟 Magikarp Jump 🐟";
+                helpers.forEach(h => h.remove());
+            }, 5000);
+        }
+
+        function handleJump(e) {
+            if(!bgmStarted) { bgm.play(); bgmStarted = true; updateVolume(); }
+            if(e && e.code === 'Space') e.preventDefault();
+            if(e && e.repeat) return;
+
+            let add = 1;
+            if(Math.random() * 100 < state.lvStrength * 1.0) {
+                add += 1;
+                showBonusText("추가 클릭!");
+            }
+
+            if(isFever) {
+                add += (state.lvHelp + 1);
+                document.querySelectorAll('.helper-karp, #magikarp').forEach(el => {
+                    el.classList.remove('jump'); void el.offsetWidth; el.classList.add('jump');
+                });
+            } else {
+                const mainKarp = document.getElementById('magikarp');
+                mainKarp.classList.remove('jump'); void mainKarp.offsetWidth; mainKarp.classList.add('jump');
+                if(state.lvHelp > 0 && Math.random() * 100 < 1) startFever();
+            }
+
+            state.currentClicks += add;
+            state.totalClicks += add;
+            playCry(skinInfo[state.currentSkin].id);
+            checkUnlocks();
+            saveAndRefresh();
+        }
+
+        function upgrade(type) {
+            if(type === 'strength' && state.currentClicks >= state.costStrength && state.lvStrength < 15) {
+                state.currentClicks -= state.costStrength;
+                state.lvStrength++;
+                state.costStrength *= 2;
+            } else if(type === 'help' && state.lvHelp < 5 && state.currentClicks >= helpCosts[state.lvHelp]) {
+                state.currentClicks -= helpCosts[state.lvHelp];
+                state.lvHelp++;
+                if(state.lvHelp === 5) unlockSkin('red_gyarados', "🐉 '잉어킹의 도움' 마스터! 빨간 갸라도스 해금!");
+            }
+            saveAndRefresh();
+        }
+
+        function checkUnlocks() {
+            if (state.totalClicks >= 1000 && !state.unlockedSkins.includes('gyarados')) unlockSkin('gyarados', "🌊 갸라도스 해금!");
+            if (state.totalClicks >= 10000 && !state.unlockedSkins.includes('ditto')) unlockSkin('ditto', "🫠 메타몽 해금!");
+            if (state.totalClicks >= 100000 && !state.unlockedSkins.includes('dynamax')) unlockSkin('dynamax', "🔴 다이맥스 해금!");
+        }
+
+        function unlockSkin(id, msg) { if(!state.unlockedSkins.includes(id)) { state.unlockedSkins.push(id); alert(msg); } }
+        function saveAndRefresh() { localStorage.setItem('magikarpData', JSON.stringify(state)); updateUI(); }
+
+        function updateUI() {
+            document.getElementById('current-clicks').innerText = Math.floor(state.currentClicks).toLocaleString();
+            document.getElementById('total-clicks').innerText = Math.floor(state.totalClicks).toLocaleString();
+            document.getElementById('lv1').innerText = state.lvStrength;
+            document.getElementById('prob1').innerText = (state.lvStrength * 1.0).toFixed(0);
+            document.getElementById('up1').innerText = state.lvStrength >= 15 ? "MAX" : `강화 (${state.costStrength.toLocaleString()})`;
+            document.getElementById('up1').disabled = state.lvStrength >= 15 || state.currentClicks < state.costStrength;
+            document.getElementById('lv2').innerText = state.lvHelp;
+            const helpCost = helpCosts[state.lvHelp] || 0;
+            document.getElementById('up2').innerText = state.lvHelp >= 5 ? "MAX" : `강화 (${helpCost.toLocaleString()})`;
+            document.getElementById('up2').disabled = state.lvHelp >= 5 || state.currentClicks < helpCost;
+
+            const img = document.getElementById('magikarp');
+            img.src = skinInfo[state.currentSkin].url;
+            if (state.currentSkin === 'dynamax') img.style.width = "350px";
+            else if (state.currentSkin === 'ditto') { img.style.width = "150px"; img.style.filter = "hue-rotate(280deg) saturate(1.5)"; }
+            else img.style.width = "150px";
+
+            const menu = document.getElementById('skin-list');
+            menu.innerHTML = '';
+            Object.keys(skinInfo).forEach(id => {
+                const isUnlocked = state.unlockedSkins.includes(id);
+                const btn = document.createElement('button');
+                btn.className = `btn ${isUnlocked ? 'unlocked' : ''} ${state.currentSkin === id ? 'active' : ''}`;
+                btn.innerText = isUnlocked ? skinInfo[id].name : "???";
+                btn.onclick = () => { if(isUnlocked) { state.currentSkin = id; saveAndRefresh(); } };
+                menu.appendChild(btn);
+            });
+        }
+
+        fetch('https://ipapi.co/json/').then(r => r.json()).then(data => { document.getElementById('location').innerText = `🌍 국가: ${data.country_name}`; }).catch(() => { document.getElementById('location').innerText = "🌍 국가: 오프라인"; });
+        window.addEventListener('keydown', (e) => { if(e.code === 'Space') handleJump(e); });
+        updateUI();
+    </script>
+</body>
+</html>
